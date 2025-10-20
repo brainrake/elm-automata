@@ -10,7 +10,7 @@ import Browser
 import Delay
 import Dict
 import Examples
-import Html exposing (Html, a, b, button, code, div, h2, h3, h4, h5, input, li, option, p, section, select, small, span, table, td, text, textarea, th, tr, ul)
+import Html exposing (Html, a, b, br, button, code, div, h2, h3, h4, h5, input, li, option, p, section, select, small, span, table, td, text, textarea, th, tr, ul)
 import Html.Attributes as H exposing (class, classList, cols, href, id, rows, style, type_, value)
 import Html.Events exposing (onClick, onInput, onMouseEnter, onMouseLeave)
 import Html.Extra exposing (viewMaybe)
@@ -158,7 +158,9 @@ view model =
                         ]
                     , p []
                         [ text "The first line is the start state. "
+                        , br [] []
                         , text "The second line are the end states separated by spaces. "
+                        , br [] []
                         , text "The remaining lines are transitions: each one is a from-state, a single character symbol, and to-state, separated by spaces."
                         ]
                     , p []
