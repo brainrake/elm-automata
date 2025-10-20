@@ -9,14 +9,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-      
+
       - name: Install elm-test
-        run: npm install -g elm-test
-      
+        run: npm install -g elm elm-test
+
       - name: Run tests
         run: elm-test
