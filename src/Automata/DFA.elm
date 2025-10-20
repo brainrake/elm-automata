@@ -192,8 +192,7 @@ minimize dfa_ =
                 x
 
             else
-                --fix f next
-                x
+                fix f next
 
         dN : List (List ( ( state, state ), Bool ))
         dN =
