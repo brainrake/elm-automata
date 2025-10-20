@@ -15,7 +15,7 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install elm-test
+      - name: Install elm and elm-test
         run: npm install -g elm elm-test
 
       - name: Run tests
