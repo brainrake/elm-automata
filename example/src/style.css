@@ -1,0 +1,308 @@
+html {
+  font-family: sans-serif;
+
+  --red: #bf616a;
+  --green: #a3be8c;
+  --orange: #d08770;
+  --grey: #e5e9f0;
+  --selected: #d8dee9;
+  --border: #4c566a;
+  --code: #eceff4;
+  background-color: #eceff4;
+}
+
+section {
+  margin: 8px;
+  padding-block: 8px;
+  padding-inline: 16px;
+  border-radius: 8px;
+  background-color: white;
+}
+
+p {
+  margin-top: 0;
+  margin-bottom: 0.5em;
+}
+
+h3,
+h4,
+h5 {
+  margin-block: 10px;
+}
+
+code {
+  display: inline-block;
+  background: var(--code);
+  border-radius: 3px;
+  padding: 2px;
+  margin: 1px;
+}
+
+small {
+  font-weight: normal;
+  margin-left: 16px;
+  font-size: 1rem;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+td,
+th {
+  padding: 2px;
+  padding-right: 4px;
+}
+
+table.inner-border td:not(:last-child),
+table.inner-border th:not(:last-child) {
+  border-right: 1px solid var(--border);
+}
+
+th {
+  font-weight: normal;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+ul {
+  margin-top: 0;
+}
+
+.transitions td:first-child {
+  text-align: right;
+}
+
+.columns {
+  display: flex;
+  gap: 32px;
+}
+
+.border {
+  border: 1px solid var(--border);
+}
+
+.wrap {
+  flex-wrap: wrap;
+}
+
+.inline-flex {
+  display: inline-flex;
+}
+
+.bool {
+  display: inline-block;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  width: 1.5em;
+  text-align: center;
+  margin: 1px;
+}
+
+.bool.true {
+  background: #efe;
+}
+
+.bool.false {
+  background: #fee;
+}
+
+.bool.maybe {
+  background: #ffd;
+}
+
+.stateLabel {
+  position: relative;
+  display: inline-block;
+  font-family: serif;
+  padding: 4px;
+  border-radius: 1000px;
+  border: 2px solid var(--border);
+  cursor: pointer;
+  font-size: 0.9em;
+  background: white;
+  margin: 1px;
+  min-width: 12px;
+  text-align: center;
+}
+
+.stateLabel.start::before {
+  content: "🡾";
+  position: absolute;
+  display: block;
+  left: -8px;
+  top: -12px;
+  width: 8px;
+  height: 8px;
+  pointer-events: none;
+  text-align: left;
+}
+
+.stateLabel.end {
+  outline: 1.2px solid black;
+  outline-offset: -4px;
+}
+
+.stateLabel.selected,
+.stateLabel:hover {
+  background: var(--selected);
+}
+
+.stateLabel.from {
+  border-color: var(--green);
+}
+
+.stateLabel.to {
+  border-color: var(--red);
+}
+
+.stateLabel.from.to {
+  border-color: var(--orange);
+}
+
+.symbolLabel {
+  display: inline-block;
+  font-size: 1.2em;
+  background: #eee;
+  font-family: monospace;
+  padding: 3px;
+  margin: 1px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.symbolLabel.selected,
+.symbolLabel:hover {
+  background: var(--selected);
+}
+
+.symbolLabel.from {
+  outline: 1px solid var(--green);
+}
+
+.symbolLabel.to {
+  outline: 1px solid var(--selected);
+}
+
+.symbolLabel.from.to {
+  outline: 1px solid var(--orange);
+}
+
+.transition {
+  border-radius: 1000px;
+}
+
+.transition.selected {
+  outline: 2px solid black;
+}
+
+.transition.from {
+  outline: 2px solid var(--green);
+}
+
+.transition.to {
+  outline: 2px solid var(--red);
+}
+
+.transition.from.to {
+  border-color: var(--orange);
+}
+
+g.node {
+  cursor: pointer;
+}
+
+g.node ellipse.outside {
+  stroke-width: 1.5px;
+}
+
+g.node.from ellipse.outside {
+  stroke: var(--green);
+}
+
+g.node.to ellipse.outside {
+  stroke: var(--red);
+}
+
+g.node.from.to ellipse.outside {
+  stroke: var(--orange);
+}
+
+g.node.selected ellipse {
+  fill: var(--selected);
+}
+
+g.node ellipse {
+  fill: transparent;
+}
+
+g.edge.selected path.visual {
+  stroke-width: 3px;
+}
+
+g.edge.from path.visual {
+  stroke: var(--green);
+  stroke-width: 3px;
+}
+
+g.edge.from polygon {
+  fill: var(--green);
+  stroke: var(--green);
+}
+
+g.edge.to path.visual {
+  stroke: var(--red);
+  stroke-width: 3px;
+}
+g.edge.to polygon {
+  fill: var(--red);
+  stroke: var(--red);
+}
+
+g.edge.from.to path.visual {
+  stroke: var(--orange);
+  stroke-width: 3px;
+}
+
+g.edge.from.to polygon {
+  fill: var(--orange);
+  stroke: var(--orange);
+}
+
+g.edge.selected rect {
+  fill: var(--selected) !important;
+}
+
+g.edge.selected-symbol rect {
+  fill: var(--selected) !important;
+}
+
+g.edge {
+  cursor: pointer;
+}
+
+g.edge text {
+  font-family: monospace;
+}
+
+.help {
+  min-width: 240px;
+  /* max-width: 360px; */
+}
+
+.paths {
+  height: 100px;
+  width: 250px;
+  overflow: scroll;
+  padding: 3px;
+}
+
+.generate {
+  max-height: 100px;
+  min-width: 100px;
+  overflow-y: scroll;
+}
+
+.generate code {
+  cursor: pointer;
+}
