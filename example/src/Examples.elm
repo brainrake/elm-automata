@@ -6,6 +6,15 @@ examples =
     [ ( "one"
       , example
       )
+    , ( "two"
+      , """q0
+q0 q2
+q0 a q1
+q1 b q0
+q1 b q2
+q2 a q1
+    """
+      )
     ]
 
 

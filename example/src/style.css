@@ -216,6 +216,10 @@ g.node ellipse.outside {
   stroke-width: 1.5px;
 }
 
+g.node.selected ellipse.outside {
+  stroke-width: 3px;
+}
+
 g.node.from ellipse.outside {
   stroke: var(--green);
 }
@@ -237,7 +241,7 @@ g.node ellipse {
 }
 
 g.edge.selected path.visual {
-  stroke-width: 3px;
+  stroke-width: 4px;
 }
 
 g.edge.from path.visual {
@@ -270,11 +274,11 @@ g.edge.from.to polygon {
 }
 
 g.edge.selected rect {
-  fill: var(--selected) !important;
+  fill: #ccea !important;
 }
 
 g.edge.selected-symbol rect {
-  fill: var(--selected) !important;
+  fill: #ccea !important;
 }
 
 g.edge {

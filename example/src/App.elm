@@ -39,12 +39,13 @@ type alias Model =
 type alias Ui =
     { graphId : String
     , enfa : ENFA
+    , playing : Maybe ( Int, Int )
     , input : String
     , generateMaxLength : Int
     , selectedState : Maybe State
     , selectedSymbol : Maybe Symbol
     , selectedTransition : Maybe Transition
-    , selectedNodeStep : Maybe ( Maybe Transition, State, Maybe Transition )
+    , selectedStateStep : Maybe ( Maybe Transition, State, Maybe Transition )
     }
 
 
@@ -52,10 +53,11 @@ initUi : Ui
 initUi =
     { graphId = ""
     , enfa = { start = "", ends = [], transitions = [] }
+    , playing = Nothing
     , input = "000"
     , generateMaxLength = 3
     , selectedState = Nothing
     , selectedSymbol = Nothing
     , selectedTransition = Nothing
-    , selectedNodeStep = Nothing
+    , selectedStateStep = Nothing
     }

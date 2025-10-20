@@ -50,8 +50,8 @@ app.ports.renderDot_.subscribe(function ([graphId, message]) {
         el.classList.add("inside");
         el.setAttribute("cx", e.getAttribute("cx") * 1);
         el.setAttribute("cy", e.getAttribute("cy") * 1);
-        el.setAttribute("rx", e.getAttribute("rx") - 2);
-        el.setAttribute("ry", e.getAttribute("ry") - 2);
+        el.setAttribute("rx", e.getAttribute("rx") - 3);
+        el.setAttribute("ry", e.getAttribute("ry") - 3);
         el.setAttribute("stroke", "black");
         el.setAttribute("stroke-width", "0.6");
         t.parentNode.insertBefore(el, t);

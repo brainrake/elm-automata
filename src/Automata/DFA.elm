@@ -2,6 +2,7 @@ module Automata.DFA exposing (..)
 
 import Automata.NFA as NFA exposing (..)
 import Basics.Extra exposing (flip)
+import Html exposing (a)
 import List.Extra
 
 
@@ -80,7 +81,7 @@ reachable nfa =
                             newStates =
                                 nfa.transitions |> List.filter (\t -> t.from == first) |> List.map .to
                         in
-                        aux acc (rest ++ newStates)
+                        aux (first :: acc) (rest ++ newStates)
 
                 [] ->
                     acc
@@ -112,7 +113,7 @@ productive nfa =
                             newStates =
                                 nfa.transitions |> List.filter (\t -> t.to == first) |> List.map .from
                         in
-                        aux acc (rest ++ newStates)
+                        aux (first :: acc) (rest ++ newStates)
 
                 [] ->
                     acc
@@ -127,13 +128,33 @@ unproductive nfa =
     states nfa |> List.filter (not << flip List.member (productive nfa))
 
 
-minify : DFA state symbol -> DFA state symbol
-minify dfa =
-    -- Construct an nxn matrix D(0) such that the entry D(0)i,j is TRUE if one of the states i, j is final while the other is not. The entry is FALSE otherwise (both i, j are final or both non-final states);
-    -- Given matrix D(k) we can construct matrix D(k+1) as follows: D(k+1)i,j is TRUE if D(k)i,j was TRUE or there is an input a such that starting from state i with input a takes us to a state i' and stating from state j with input a takes us to a state j' such that D(k)i',j' is TRUE. Otherwise, the entry D(k+1)i,j remains marked FALSE.
-    -- Repeat the previous step until D(k+1)i,j is the same as D(k)i,j. Call this final matrix D.
-    -- We now know that state i is indistinguishable from state j if and only if Di,j is FALSE - join together the indistinguishable states
+prune : DFA state symbol -> DFA state symbol
+prune dfa =
     let
+        useful =
+            reachable dfa |> List.filter (flip List.member (productive dfa))
+
+        ends =
+            dfa.ends |> List.filter (flip List.member useful)
+
+        transitions =
+            dfa.transitions |> List.filter (\t -> List.member t.from useful && List.member t.to useful)
+    in
+    { start = dfa.start
+    , ends = ends
+    , transitions = transitions
+    }
+
+
+minimize : DFA state symbol -> DFA state symbol
+minimize dfa_ =
+    let
+        dfa =
+            prune dfa_
+
+        allSyms =
+            symbols dfa
+
         matrix : List (List ( state, state ))
         matrix =
             states dfa |> List.map (\s1 -> states dfa |> List.map (Tuple.pair s1))
@@ -142,15 +163,52 @@ minify dfa =
         different ( s1, s2 ) =
             ended { dfa | start = s1 } /= ended { dfa | start = s2 }
 
-        d0 : List (List Bool)
+        nextDifferent : List (List ( ( state, state ), Bool )) -> ( state, state ) -> Bool
+        nextDifferent d ( s1, s2 ) =
+            allSyms
+                |> List.any
+                    (\sym ->
+                        cross
+                            (NFA.step sym { dfa | start = s1 })
+                            (NFA.step sym { dfa | start = s1 })
+                            |> List.any different
+                    )
+
+        d0 : List (List ( ( state, state ), Bool ))
         d0 =
-            matrix |> List.map (List.map different)
+            matrix |> List.map (List.map (\p -> ( p, different p )))
 
-        incoming : state -> List (Transition state symbol)
-        incoming state =
-            []
-
+        dS : List (List ( ( state, state ), Bool )) -> List (List ( ( state, state ), Bool ))
         dS d =
-            0
+            d |> List.map (List.map (\( p, dif ) -> ( p, dif || nextDifferent d p )))
+
+        fix : (a -> a) -> a -> a
+        fix f x =
+            let
+                next =
+                    f x
+            in
+            if next == x then
+                x
+
+            else
+                --fix f next
+                x
+
+        dN : List (List ( ( state, state ), Bool ))
+        dN =
+            fix dS d0
+
+        indistinguishable : List ( state, state )
+        indistinguishable =
+            dN |> List.concatMap (List.filter Tuple.second >> List.map Tuple.first) |> (\i -> i |> List.filter (\( s1, s2 ) -> not (List.member ( s2, s1 ) i)))
+
+        toRemove : List state
+        toRemove =
+            indistinguishable |> List.map Tuple.second
     in
-    dfa
+    { start = dfa.start
+    , ends = dfa.ends |> List.filter (\e -> not (List.member e toRemove))
+    , transitions = dfa.transitions |> List.filter (\t -> not (List.member t.from toRemove) && not (List.member t.to toRemove))
+    }
+        |> prune

@@ -7,6 +7,7 @@ import Automata.ENFA as ENFA
 import Automata.NFA as NFA
 import Basics.Extra exposing (flip)
 import Browser
+import Delay
 import Dict
 import Examples
 import Html exposing (Html, a, b, button, code, div, h2, h3, h4, h5, input, li, option, p, section, select, small, span, table, td, text, textarea, th, tr, ul)
@@ -23,10 +24,12 @@ type Msg
     = UpdateSpec String
     | UpdateInput String String
     | UpdateGenerateMaxLength String String
+    | SetPlaying String (Maybe ( Int, Int ))
     | SelectState String (Maybe State)
     | SelectSymbol String (Maybe Symbol)
     | SelectTransition String (Maybe Transition)
     | SelectStateStep String (Maybe ( Maybe Transition, State, Maybe Transition ))
+    | PlayPath String Int
 
 
 concatStates : List String -> String
@@ -61,12 +64,12 @@ update msg model =
                         uis =
                             [ ( "main", identity )
                             , ( "toNFA", ENFA.toNFA >> ENFA.fromNFA )
-                            , ( "completeNFA", ENFA.toNFA >> NFA.complete "zzz" >> ENFA.fromNFA )
                             , ( "toDFA", ENFA.toNFA >> DFA.fromNFA concatStates >> ENFA.fromNFA )
-                            , ( "completeDFA", ENFA.toNFA >> DFA.fromNFA concatStates >> NFA.complete "zzz" >> ENFA.fromNFA )
+                            , ( "minimizeDFA", ENFA.toNFA >> DFA.fromNFA concatStates >> DFA.minimize >> ENFA.fromNFA )
+                            , ( "completeDFA", ENFA.toNFA >> DFA.fromNFA concatStates >> DFA.minimize >> NFA.complete "zzz" >> ENFA.fromNFA )
                             ]
                                 |> Dict.fromList
-                                |> Dict.map (\k f -> { initUi | graphId = k, enfa = f enfa })
+                                |> Dict.map (\k f -> { initUi | graphId = k, enfa = f enfa, playing = Nothing })
                     in
                     ( { model | spec = spec, enfa = Just enfa, uis = uis }
                     , Cmd.batch (uis |> Dict.map (\k v -> Ports.renderDot ( k, efsaToDot v.enfa )) |> Dict.values)
@@ -91,7 +94,40 @@ update msg model =
             ( updateUi graphId (\ui -> { ui | selectedTransition = s }), Ports.selectedTransition ( graphId, s ) )
 
         SelectStateStep graphId s ->
-            ( updateUi graphId (\ui -> { ui | selectedNodeStep = s }), Ports.selectedStateStep ( graphId, s ) )
+            ( updateUi graphId (\ui -> { ui | selectedStateStep = s }), Ports.selectedStateStep ( graphId, s ) )
+
+        SetPlaying graphId playing ->
+            ( updateUi graphId (\ui -> { ui | playing = playing }), Cmd.none )
+
+        PlayPath graphId i ->
+            let
+                f : Ui -> Path -> List ( Int, Msg )
+                f ui path =
+                    path
+                        |> List.foldl (\( s, to ) acc -> { from = acc |> List.head |> Maybe.map .to |> Maybe.withDefault ui.enfa.start, symbol = s, to = to } :: acc) []
+                        |> List.foldl (\e acc -> ( e, acc |> List.head |> Maybe.map Tuple.first ) :: acc) []
+                        |> List.indexedMap
+                            (\j ( e, nextE ) ->
+                                [ ( 0, SetPlaying graphId (Just ( i, j + 1 )) )
+                                , ( 0, SelectTransition graphId (Just e) )
+                                , ( 800, SelectTransition graphId Nothing )
+                                , ( 0, SelectStateStep graphId (Just ( Just e, e.to, nextE )) )
+                                , ( 800, SelectStateStep graphId Nothing )
+                                ]
+                            )
+                        |> List.concat
+                        |> (++)
+                            [ ( 0, SetPlaying graphId (Just ( i, 0 )) )
+                            , ( 0, SelectStateStep graphId (Just ( Nothing, ui.enfa.start, path |> List.head |> Maybe.map (\( sym, st ) -> { from = ui.enfa.start, symbol = sym, to = st }) )) )
+                            , ( 1000, SelectStateStep graphId Nothing )
+                            ]
+                        |> flip (++) [ ( 0, SetPlaying graphId Nothing ) ]
+            in
+            model.uis
+                |> Dict.get graphId
+                |> Maybe.andThen (\ui -> ui |> inputPaths |> Tuple.second |> List.Extra.getAt i |> Maybe.map (f ui))
+                |> Maybe.map (Delay.sequence >> Tuple.pair model)
+                |> Maybe.withDefault ( model, Cmd.none )
 
 
 view : Model -> Html Msg
@@ -172,7 +208,7 @@ viewState ui state =
         , onMouseEnter (SelectState ui.graphId (Just state))
         , onMouseLeave (SelectState ui.graphId Nothing)
         , classList
-            [ ( "selected", ui.selectedState == Just state || (ui.selectedNodeStep |> Maybe.map (\( _, s, _ ) -> s == state) |> Maybe.withDefault False) )
+            [ ( "selected", ui.selectedState == Just state || (ui.selectedStateStep |> Maybe.map (\( _, s, _ ) -> s == state) |> Maybe.withDefault False) )
             , ( "from", Maybe.map .from ui.selectedTransition == Just state )
             , ( "to", Maybe.map .to ui.selectedTransition == Just state )
             ]
@@ -202,8 +238,8 @@ viewSymbols ui syms =
     Html.span [] (syms |> List.sortBy (Maybe.withDefault ' ') |> List.map (viewSymbol ui))
 
 
-viewAutomaton : Ui -> Html Msg
-viewAutomaton ui =
+inputPaths : Ui -> ( Bool, List Path )
+inputPaths ui =
     let
         paths =
             ui.enfa |> ENFA.allPaths (ui.input |> String.toList)
@@ -220,6 +256,15 @@ viewAutomaton ui =
 
             else
                 paths
+    in
+    ( accepted, thePaths )
+
+
+viewAutomaton : Ui -> Html Msg
+viewAutomaton ui =
+    let
+        ( accepted, thePaths ) =
+            inputPaths ui
 
         generated =
             ui.enfa |> ENFA.generate ui.generateMaxLength |> List.Extra.unique |> List.sort |> List.reverse |> List.sortBy List.length |> List.reverse
@@ -269,13 +314,13 @@ viewAutomaton ui =
                 , text "paths:"
                 ]
             , div [ class "paths border" ]
-                (thePaths |> List.map (viewPath ui))
+                (thePaths |> List.indexedMap (viewPath ui))
             , h5 [] [ text "Generate" ]
             , p []
                 [ text "Max length: "
                 , input [ type_ "number", H.max "10", H.min "1", value (ui.generateMaxLength |> String.fromInt), onInput (UpdateGenerateMaxLength ui.graphId) ] []
                 ]
-            , p [] [b [] [text <| String.fromInt <| List.length generated], text " examples:"  ]
+            , p [] [ b [] [ text <| String.fromInt <| List.length generated ], text " examples:" ]
             , div [ class "columns" ]
                 [ div [ class "generate border" ]
                     (generated |> List.map (\s -> div [] [ code [ onClick (UpdateInput ui.graphId (String.fromList s)) ] [ text (String.fromList s) ] ]))
@@ -284,8 +329,8 @@ viewAutomaton ui =
         ]
 
 
-viewStepState : Ui -> Maybe Transition -> State -> Maybe Transition -> Html Msg
-viewStepState ui prevE state nextE =
+viewStepState : Ui -> Int -> Int -> Maybe Transition -> State -> Maybe Transition -> Html Msg
+viewStepState ui n m prevE state nextE =
     viewStateEl
         [ onClick (SelectStateStep ui.graphId (Just ( prevE, state, nextE )))
         , onMouseEnter (SelectStateStep ui.graphId (Just ( prevE, state, nextE )))
@@ -293,6 +338,7 @@ viewStepState ui prevE state nextE =
         , classList
             [ ( "start", state == ui.enfa.start )
             , ( "end", List.member state ui.enfa.ends )
+            , ( "selected", ui.playing == Just ( n, m ) && ui.selectedStateStep /= Nothing )
             ]
         ]
         ui
@@ -302,8 +348,8 @@ viewStepState ui prevE state nextE =
 viewTransitionState : Ui -> Maybe Transition -> State -> Maybe Transition -> Html Msg
 viewTransitionState ui prevE state nextE =
     let
-        isSelectedNodeStep =
-            ui.selectedNodeStep |> Maybe.map (\( p, _, n ) -> p == prevE || n == nextE) |> Maybe.withDefault False
+        selectedStateStep =
+            ui.selectedStateStep |> Maybe.map (\( p, _, n ) -> p == prevE || n == nextE) |> Maybe.withDefault False
 
         isSelectedNode =
             ui.selectedState == Just state
@@ -313,7 +359,7 @@ viewTransitionState ui prevE state nextE =
         , onMouseEnter (SelectState ui.graphId (Just state))
         , onMouseLeave (SelectState ui.graphId Nothing)
         , classList
-            [ ( "selected", isSelectedNode || isSelectedNodeStep )
+            [ ( "selected", isSelectedNode || selectedStateStep )
             , ( "from", Maybe.map .from ui.selectedTransition == Just state )
             , ( "to", Maybe.map .to ui.selectedTransition == Just state )
             , ( "start", state == ui.enfa.start )
@@ -324,32 +370,46 @@ viewTransitionState ui prevE state nextE =
         state
 
 
-viewPath : Ui -> Path -> Html Msg
-viewPath ui path =
+viewPath : Ui -> Int -> Path -> Html Msg
+viewPath ui n path =
+    let
+        ( selectedTransition, selectedState, selectedStateStep ) =
+            if (ui.playing |> Maybe.map Tuple.first) == Just n then
+                ( ui.selectedTransition, ui.selectedState, ui.selectedStateStep )
+
+            else
+                ( Nothing, Nothing, Nothing )
+
+        f m =
+            ui.playing |> Maybe.map (Tuple.second >> (==) m) |> Maybe.withDefault False
+    in
     div []
-        --button [] [ text "▶" ]
-        --::
-        (span [] [ text "▶ " ]
+        (button [ onClick (PlayPath ui.graphId n) ] [ text "▶" ]
+            :: span [] [ text " " ]
             :: (viewStepState
-                    { ui | selectedTransition = Nothing, selectedState = Nothing }
+                    { ui | selectedTransition = selectedTransition, selectedState = selectedState, selectedStateStep = selectedStateStep }
+                    n
+                    0
                     Nothing
                     ui.enfa.start
                     (path |> List.head |> Maybe.map (\( sym, st ) -> { from = ui.enfa.start, symbol = sym, to = st }))
                     :: (path
                             |> List.foldl (\( s, to ) acc -> { from = acc |> List.head |> Maybe.map .to |> Maybe.withDefault ui.enfa.start, symbol = s, to = to } :: acc) []
                             |> List.foldl (\e acc -> ( e, acc |> List.head |> Maybe.map Tuple.first ) :: acc) []
-                            |> List.concatMap
-                                (\( e, nextE ) ->
+                            |> List.indexedMap
+                                (\j ( e, nextE ) ->
                                     [ viewTransitionSymbolEl
                                         [ onClick (SelectTransition ui.graphId (Just e))
                                         , onMouseEnter (SelectTransition ui.graphId (Just e))
                                         , onMouseLeave (SelectTransition ui.graphId Nothing)
+                                        , classList [ ( "selected", f (j + 1) && selectedTransition /= Nothing ) ]
                                         ]
-                                        { ui | selectedTransition = Nothing, selectedNodeStep = Nothing }
+                                        { ui | selectedTransition = Nothing, selectedStateStep = Nothing }
                                         e
-                                    , viewStepState ui (Just e) e.to nextE
+                                    , viewStepState ui n (j + 1) (Just e) e.to nextE
                                     ]
                                 )
+                            |> List.concat
                        )
                )
         )
@@ -423,49 +483,42 @@ viewAutomatonDetails model enfa =
                 ]
             , div [] [ model.uis |> Dict.get "toNFA" |> viewMaybe viewAutomaton ]
             ]
-        , model.uis
-            |> Dict.get "completeNFA"
-            |> viewMaybe
-                (\comleteUi ->
-                    section []
-                        [ h4 [] [ text "Complete NFA" ]
-                        , p []
-                            [ text "Ensure all states have outgoing transitions for all symbols. Add a new state "
-                            , viewState comleteUi "zzz"
-                            , text " as the target for new transitions."
-                            ]
-                        , div [] [ viewAutomaton comleteUi ]
-                        ]
-                )
         , section []
             [ h4 [] [ text "NFA to DFA" ]
             , p [] [ text "Make the automaton deterministic." ]
-            , p []
-                [ text "TODO" ]
+
+            -- , p []
+            --     [ text "TODO" ]
             , div [] [ model.uis |> Dict.get "toDFA" |> viewMaybe viewAutomaton ]
             ]
         , model.uis
-            |> Dict.get "completeDFA"
+            |> Dict.get "minimizeDFA"
             |> viewMaybe
-                (\comleteUi ->
+                (\ui_ ->
                     section []
-                        [ h4 [] [ text "Complete DFA" ]
-                        , p []
-                            [ text "Ensure all states have outgoing transitions for all symbols. Add a new state "
-                            , viewState comleteUi "zzz"
-                            , text " as the target for new transitions."
-                            ]
-                        , div [] [ viewAutomaton comleteUi ]
+                        [ h4 [] [ text "Minimize DFA" ]
+                        , p [] [ a [ href "https://en.wikipedia.org/wiki/DFA_minimization" ] [ text "Minimize the DFA." ] ]
+                        , div [] [ viewAutomaton ui_ ]
                         ]
                 )
-        , section []
-            [ h4 [] [ text "Minify DFA" ]
-            , p [] [ text "" ]
-            , div [] [ text "TODO" ]
-            ]
-        , section []
-            [ h4 [] [ text "Equivalence" ]
-            ]
+        , model.uis
+            |> Dict.get "completeDFA"
+            |> viewMaybe
+                (\ui_ ->
+                    section []
+                        [ h4 [] [ text "Complete minimized DFA" ]
+                        , p []
+                            [ text "Ensure all states have outgoing transitions for all symbols. Add a new state "
+                            , viewState ui_ "zzz"
+                            , text " as the target for new transitions."
+                            ]
+                        , div [] [ viewAutomaton ui_ ]
+                        ]
+                )
+
+        -- , section []
+        --     [ h4 [] [ text "Equivalence" ]
+        --     ]
         ]
 
 
@@ -480,8 +533,8 @@ viewTransitions ui =
                         [ class "transition"
                         , classList
                             [ ( "selected", ui.selectedTransition == Just e )
-                            , ( "from", (ui.selectedNodeStep |> Maybe.andThen (\( x, _, _ ) -> x)) == Just e )
-                            , ( "to", (ui.selectedNodeStep |> Maybe.andThen (\( _, _, x ) -> x)) == Just e )
+                            , ( "from", (ui.selectedStateStep |> Maybe.andThen (\( x, _, _ ) -> x)) == Just e )
+                            , ( "to", (ui.selectedStateStep |> Maybe.andThen (\( _, _, x ) -> x)) == Just e )
                             ]
                         , onClick (SelectTransition ui.graphId (Just e))
                         , onMouseEnter (SelectTransition ui.graphId (Just e))
@@ -504,8 +557,8 @@ viewTransitionSymbolEl attrs ui t =
                     [ ( "selected", ui.selectedSymbol == Just t.symbol || (ui.selectedTransition == Just t) )
                     , ( "epsilon", t.symbol == Nothing )
 
-                    -- , ( "from", Just t == (ui.selectedNodeStep |> Maybe.andThen (\( x, _, _ ) -> x)) )
-                    -- , ( "to", Just t == (ui.selectedNodeStep |> Maybe.andThen (\( _, _, x ) -> x)) )
+                    -- , ( "from", Just t == (ui.selectedStateStep |> Maybe.andThen (\( x, _, _ ) -> x)) )
+                    -- , ( "to", Just t == (ui.selectedStateStep |> Maybe.andThen (\( _, _, x ) -> x)) )
                     ]
                ]
         )
